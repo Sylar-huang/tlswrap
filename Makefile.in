@@ -1,0 +1,40 @@
+srcdir	= @srcdir@
+VPATH	= @srcdir@
+SHELL	= /bin/sh
+
+prefix	= @prefix@
+exec_prefix = @exec_prefix@
+bindir	= @bindir@
+mandir	= @mandir@
+sbindir	= @sbindir@
+ssldir=@ssldir@
+openssl=$(ssldir)/bin/openssl
+
+mandircat5 = ${mandir}/cat5
+mandircat8 = ${mandir}/cat8
+
+CC	= @CC@
+CFLAGS	= -I${srcdir} @INCLUDES@ @CFLAGS@
+LIBS	= @LIBS@
+LDFLAGS	= @LDFLAGS@
+
+INSTALL	= @INSTALL@
+
+PROG	= tlswrap
+OBJS	= config.o misc.o network.o parse.o tls.o tlswrap.o
+
+all:	${PROG}
+
+install: all
+	-mkdir -p ${bindir}
+	${INSTALL} -m 555 ${PROG} ${bindir}
+
+${PROG}: ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o ${PROG} ${OBJS} ${LIBS}
+
+clean:
+	rm -f core ${PROG} ${OBJS}
+
+distclean: clean
+	rm -f Makefile
+	rm -f config.cache

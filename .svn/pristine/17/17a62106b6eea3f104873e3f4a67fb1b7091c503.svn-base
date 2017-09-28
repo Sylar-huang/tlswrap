@@ -1,0 +1,117 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(tlswrap.c)
+AM_INIT_AUTOMAKE(tlswrap, 0.8)
+
+dnl
+dnl Get cannonical host
+dnl
+
+CFLAGS="-g"
+
+dnl Checks for programs.
+AC_PROG_CC
+if test "$GCC" = "yes" && test "$CC" != "icc"; then CFLAGS="$CFLAGS -O2 -Wall -Wmissing-prototypes"; fi
+#  if test -n "$GCC"; then
+#    CFLAGS="$CFLAGS -O2 -Wall -Wmissing-prototypes"
+#  else
+    #case "$host_os" in
+#      *hpux*)  CFLAGS="$CFLAGS +O3"                      ;;
+#      *ultrix* | *osf*) CFLAGS="$CFLAGS -O -Olimit 2000" ;;
+#      *)       CFLAGS="$CFLAGS -O" ;;
+#    esac
+#  fi
+
+AC_CYGWIN
+if test "$CYGWIN" = "yes"; then CFLAGS="$CFLAGS -Dsys_errlist=_imp___sys_errlist"; fi
+checkssldir() { :
+    if test -f "$1/include/openssl/ssl.h"; then
+#       AC_DEFINE(HAVE_OPENSSL)
+        ssldir="$1"
+        return 0
+    fi
+    if test -f "$1/include/ssl.h"; then
+        ssldir="$1"
+        return 0
+    fi
+    return 1
+}
+dnl Check for SSL directory
+AC_MSG_CHECKING([for SSL directory])
+AC_ARG_WITH(ssl,
+    [  --with-ssl=DIR          location of installed SSL libraries/include files],
+    [
+        dnl Check the specified localtion only
+        checkssldir "$withval"
+    ],
+    [
+        dnl Search default localtions of SSL library
+        for maindir in /usr/local /usr/lib /usr/pkg /usr /var/ssl /opt; do
+            for dir in $maindir $maindir/openssl $maindir/ssl; do
+                checkssldir $dir && break 2
+            done
+        done
+    ]
+)
+if test -z "$ssldir"; then
+    AC_MSG_RESULT([Not found])
+    echo
+    echo "Couldn't find your SSL library installation dir"
+    echo "Use --with-ssl option to fix this problem"
+    echo
+    exit 1
+fi
+AC_MSG_RESULT([$ssldir])
+AC_SUBST(ssldir)
+#AC_DEFINE_UNQUOTED(ssldir, "$ssldir")
+
+AC_MSG_CHECKING([whether to enable TCP wrappers])
+AC_ARG_ENABLE(libwrap,
+[  --enable-libwrap        enable TCP wrappers],
+	[
+	LIBWRAP=yes
+	],[
+	LIBWRAP=no
+]
+)
+AC_MSG_RESULT([$LIBWRAP])
+if test "$LIBWRAP" = "yes"; then
+	AC_CHECK_LIB(wrap, hosts_ctl)
+fi
+
+AM_CONFIG_HEADER(conf.h)
+dnl Checks for libraries.
+AC_CHECK_LIB(resolv, inet_aton)
+AC_CHECK_LIB(socket, connect)
+AC_CHECK_LIB(nsl, inet_ntoa)
+AC_CHECK_LIB(util, pidfile)
+# AC_CHECK_LIB(wrap, hosts_ctl)
+
+CFLAGS="$CFLAGS -I$ssldir/include"
+LIBS="$LIBS -L$ssldir/lib -lssl -lcrypto"
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS(fcntl.h strings.h sys/time.h syslog.h unistd.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+#AC_CHECK_TYPES(socklen_t,[AC_DEFINE(HAVE_SOCKLEN_T)],,[#include <sys/socket.h>])
+#AC_CHECK_TYPES(socklen_t,,,[#include <sys/socket.h>])
+AC_CHECK_TYPE(socklen_t,,[AC_DEFINE(socklen_t, size_t, blah)],[#include <sys/socket.h>])
+
+#AC_CHECK_SIZEOF(ssize_t)
+#AC_CHECK_SIZEOF(unsigned int)
+#AC_CHECK_SIZEOF(unsigned long)
+
+case "$ac_cv_host" in
+  *hpux*) AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [HP-UX socket headers]);;
+esac
+
+
+dnl Checks for library functions.
+AC_FUNC_MEMCMP
+AC_CHECK_FUNCS(getopt pidfile inet_aton RAND_status errx strlcpy daemon getnameinfo setproctitle)
+AC_SUBST(INCLUDES)
+AC_OUTPUT(Makefile)

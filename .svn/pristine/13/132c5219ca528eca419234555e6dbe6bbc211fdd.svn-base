@@ -1,0 +1,282 @@
+1.04
+
+- The fixing of the silly memleak introduced a bug that could cause
+  crashes on some systems, fixed. Thanks to Jukka Anttonen for reporting
+  it.
+
+1.03
+
+- At least one ftpd can't handle PROT before USER, this is (unfortunately)
+  allowed by the TLS FTP spec so handle it properly.
+
+- The debug mode crashed on Linux and probably some other OSes.
+
+- It now is possible to build a version for Windows 9x/ME (which does not
+  have the possibility to run as a service). This is the first version
+  ever to work properly on this platform, as the old Cygwin version
+  didn't work on 9x.
+  
+- Improved the error handling for connection resets in the TLS handshake.
+
+- Improved the error handling for connection attempts blocked by software
+  firewalls in Windows.
+
+- Fixed a silly memleak.
+
+1.02
+
+- Minor HP-UX fixes (UNIX95 vs UNIX98 vs current).
+
+- Fixed detection of recent versions of the Intel compiler on Linux, to
+  prevent a strange compilation error on Itanium systems.
+
+- A small fix to work with the recently released OpenSSL 0.9.8.
+
+- Since OpenSSL 0.9.8 supports 64-bit Windows (x64 and IA64), TLSWrap also
+  does:
+
+  I have provided an installer for Windows x64, just like for the normal x86
+  version. The installer is unfortunately 32-bit for now, but everything
+  else is 64-bit. The included OpenSSL DLLs are compiled with the Intel C++
+  Compiler 9.0 for EM64T and should in many cases have superior performance
+  compared to the 32-bit versions (I get twice the speed with AES on my EM64T
+  CPU, but the performance will vary with algorithm and CPU type).
+  
+  I found a bug in OpenSSL 0.9.8 that broke DES encryption when using the
+  latest Intel compiler. The included DLL's have this fix applied and the
+  next official version of OpenSSL 0.9.8 will also have this fix.
+
+1.01
+
+- Fixed a bug in the startup code that could randomly prevent it from loading
+  on Windows XP Pro x64 edition (and theoretically on other Windows versions).
+
+- The Configuration Manager should not start if the TLSWrap service is not
+  installed, fixed. Improved some error messages.
+
+1.00
+
+- Added support for active FTP (i.e. PORT and EPRT modes).
+
+- Added support for user certificates/certificate chains. To use this
+  feature, start TLSWrap with -P <path_of_user_certificate_directory> (or if
+  using the Windows service, with the configuration manager). After this,
+  TLSWrap will try to use <server-IP>.pem from the user certificate
+  directory.
+
+  The certificates must be in PEM format and must be sorted starting with the
+  subject's certificate (actual client certificate), followed by intermediate
+  CA certificates if applicable, and ending at the highest level (root) CA. 
+
+- The TLSWrap Configuration Manager for the Windows service now supports
+  managing user certificates in addition to server certificates.
+  
+- It is now possible to add and delete certificates using the buttons in the
+  TLSWrap Configuration Manager. It is also possible to rename a certificate
+  by clicking on its file name in the list. Also misc. improvements to the
+  certificate handling.
+
+0.9
+
+- Added a GUI configuration tool and a tray monitor for the Windows version.
+
+- Fixed the error handling for DNS errors. TLSWrap now gives a "530 Could not
+  resolve hostname." error and it is possible to start over with a new USER
+  string without reconnecting.
+
+- Fixed a bug and a portability issue in the connection routines handling
+  refused connections.
+
+- Passive TCP ports below 256 were not handled correcly, reported with patch
+  by Christoph Hackman. It is unlikely that anyone was affected unless they
+  patched their ftpd to use privileged ports to get around their ISPs
+  throttling of higher ports.
+
+- It was not possible to change the token defaults anymore, fixed.
+
+- Added PKI support and a number of "security modes" to control it:
+  ---------------------------------------------------------------------------
+  0 - No certificate verification is done. (Default for now.)
+
+  1 - Relaxed whitelisting
+      --------------------
+      On the first connection to a server, its certificates (control and
+      data connections are treated separately, for quite obvious reasons), will
+      will be saved in the certs dir (see below) as <server-IP>-<data/ctrl>.pem.
+
+      On subsequent connections, TLSWrap will verify the stored certificates
+      against those presented by the server. If the control connection
+      certificate doesn't match, tlswrap will say "530 TLSWrap certificate
+      verification failed, disconnecting." and disconnect. If the data
+      certificate doesn't match, it will print "425 TLSWrap data certificate
+      verification failed.", the data transfer will be aborted but TLSWrap will
+      stay connected with the server.
+
+      No other checks (such as expiration dates, CRLs, CAs) will be made on
+      the certificates.
+
+  2 - Strict whitelisting
+      -------------------
+      Identical to mode 1 above, but with the difference that no new
+      certificates will be added. If TLSWrap can't find certificate file(s)
+      for a server, it will just disconnect.
+
+  3 - Relaxed PKI path validation
+      ---------------------------
+      This mode requires one or more X.509 CA certificates (or certificate chains)
+      in the form of a PEM file. All certificates must be valid. To specify CA
+      certificates, use -a <name_of_ca_PEM_file>.
+
+      Upon connection with a server, an encrypted TLS session is first eshtablished.
+      This yields the server's X.509 certificate which is validated using the
+      previously specified CA certificates. No certificate fields are used.
+
+  4 - Strict PKI path validation
+      --------------------------
+      This works like above mode, but the certificate information is verified as
+      follows:
+
+      If the X.509v3 subject alternative name extension is present, then
+      the DNS name and IP address fields will be matched against the server's.
+      If there is no subjectAltName extension the commonName (CN) will be
+      compared against the DNS name. If either check fail then the connection
+      will be terminated.
+
+      ## This is the proper way to use X.509 certificates ##
+
+  ---------------------------------------------------------------------------
+
+  Set the default security mode with -s <mode> or dynamically with
+  the connection string +<mode>user@host:port
+
+- All server certificates will be stored and loaded from a certs/ subdirectory
+  from where tlswrap is started. This directory is automatically created the
+  first time tlswrap is started. An alternative directory may be specified with -p
+  <other_certs_dir>, but this directory must already exist. If you make the
+  directory manually, remember to set proper access rights (probably chmod 700).
+
+- Added support for building a native Windows NT/2000/XP version, which resulted
+  in a major speed improvement compared to the previous Cygwin versions. The same
+  source now builds the UNIX versions, the Cygwin version and a native Windows
+  version using either "Intel(R) C++ Compiler for 32-bit applications,
+  Version 8.1" or "Microsoft (R) 32-bit C/C++ Optimizing Compiler Version
+  12.00.8804 for 80x86". It is still possible to build a Cygwin version, but as
+  before, the performance is abysmal.
+
+- The native Windows version now supports installing itself as a system service,
+  and thus it can be started automatically at system boot and run in the background.
+  
+  The official TLSWrap Windows installer allows for easy installation and
+  removal of the TLSWrap service, but see below how to do it manually:
+
+  Use 'tlswrap -I <options>' to install TLSWrap as a service, to be
+  started with <options> on system boot. If the options contain spaces, enclose them
+  with ", e.g. 'tlswrap -I "-l 6000"'. To install with the default options, use the
+  command 'tlswrap -I ""'. The service is automatically started after installation.
+
+  Use "tlswrap -R" to stop (if it is running) and remove the TLSWrap service.
+  
+- Misc TLS changes, including cached SSL sessions for data connections.
+
+- Decreased the data buffer size from 8192 bytes to 4096 bytes on the native
+  MS Windows version.
+
+- Fixed a nasty bug concering aborted connections versus TLS nonblocking
+  stuff.
+
+- Fixed an old but very simple bug that could case the program to loop if
+  the server dropped the connection.
+  
+- Fixed a bug reported by Markus Jevring that caused TLSWrap to stall in
+  certain cases.
+
+- Fixed so that it is possible to combine user string tokens, for example
+  use #% to get "implicit SSL without data encryption" (yes, it's still a
+  horrible non-standard).
+
+0.8 test 2
+
+- Added a Windows installer.
+
+- AES 256-bit is the default cipher now (requires OpenSSL 0.9.7), RC4 is the
+  alternative choice.
+
+0.8 test 1
+
+- %user@host:port can now be used to connect with servers using
+  "implicit SSL", a non-standard that immediately expects a SSL/TLS
+  handshake on the control connection, for example "Serv-U FTP server" with
+  "Allow only SSL/TLS sessions". Originated as a patch from Serg Kastelli
+  <sk(at)online-web.net> (thanks) but was bugfixed and changed from beeing
+  a commandline option.
+
+- Set TOS types in IP headers, originally from Thomas Habets
+  <thomas(at)habets.pp.se> (thanks) but was changed to work with
+  more than Linux...
+
+- misc source cleanups
+
+- EPSV wasn't 100% working, fixed.
+
+0.7 final
+
+- fixed a possibly unitialized variable. if you got the error:
+  "bind: Permission denied" while using multiple sessions, 
+  this is now fixed.
+- only had RSA ciphers on the default cipherlist, added a few DHE algos.
+- removed too much from the documentation last spring cleaning,
+  put them back now:
+
+        -c max 
+                Maximum number of client connections to handle. Defaults
+                to 5.        
+
+        -C list
+                Select permitted SSL ciphers each separated by a colon.
+
+0.7 beta4
+
+- reject possible AUTH commands sent before USER.
+- its possible to change the #, @ and : characters used to
+  separate the username, hostname and port and to disable
+  data encryption, see README for details.
+
+0.7 beta3
+- forgot to initialize a flag structure when reusing objects,
+  could probably cause a crash.
+- added -h argument to specify ip or hostname to bind the
+  listening socket. The default is now 127.0.0.1, so you
+  who used it remotely *MUST* specify another IP to listen
+  to!
+
+0.7 beta2
+- changed the buffer size to 8192 bytes.
+- don't mess with the TCP buffer sizes
+- oops, had an abort() left in the code, no wonder it coredumped...
+  should fix everyone's "crash" problems!
+- removed some unnecessary crap from tls.c
+
+0.7 beta1
+
+- added support for EPSV (Extended Passive Mode)
+- wait to forward the control channel until a \n is found, fixes a
+  bug with badly written ftp servers (hi glftpd-TLS) that send a
+  packet for each character!
+- don't try to calculate the max fd, just use FD_SETSIZE
+
+
+0.6
+
+- Use inet_addr() if inet_aton() doesn't exist.
+- Added support for a entropy gathering daemon.
+- Lots of changes to make it as portable as possible.
+
+0.6 pre3
+
+- Added a check for RAND_status() to the configure script to work with
+  OpenSSL 0.9.4. Other misc fixes and changes.
+
+0.6 pre2
+
+- If the username starts with #, only encrypt control channel (for "FXP"
+  or "ftp proxy" use).

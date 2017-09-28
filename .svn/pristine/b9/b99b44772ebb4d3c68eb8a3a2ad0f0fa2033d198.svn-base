@@ -1,0 +1,196 @@
+TLSWrap v1.04
+-------------
+
+Copyright (c) 2002-2006 Tomas Svensson <ts@codepix.com>
+
+TLSWrap is a TLS/SSL FTP wrapper/proxy for UNIX and Windows, allowing you
+to use your favourite FTP client with any TLS/SSL-enabled FTP server. 
+
+Features:
+
+* Full encryption of both control and data connections (it's possible to
+  only encrypt the control channel).
+
+* One process handles all connections (non-blocking I/O).
+
+* A helper process (thread on Windows) does all hostname lookups so that
+  the main process is free for other work during slow lookups.
+
+* Both C source and native Windows executable available.
+
+* Runs as a system service on MS Windows, if desired.
+
+
+Tested and confirmed to work on the following operating systems (using GCC
+unless otherwise specified):
+
+Compaq Tru64 UNIX V5.1A (Alpha with Compaq C V6.4-009)
+Debian GNU/Linux 2.2r5 (i386, StrongARM)
+FreeBSD 5.4 (i386)
+NetBSD 1.5.2 (i386, Alpha)
+OpenBSD 3.2 (i386, Alpha)
+Redhat Linux 7.1 (i386 with Intel(R) C++ Compiler for 32-bit applications, Version 5.0.1)
+Redhat Linux 7.2 (IA64 with Intel(R) C++ Itanium(TM) Compiler 5.0.1)
+Slackware Linux 8.0 (i386)
+Solaris 7 (SPARC with both GCC and WorkShop Compilers 5.0 98/12/15 C 5.0)
+Solaris 9 (SPARC)
+Windows 2000 (i386 with Cygwin)
+Windows 2000 (i386 with Intel(R) C++ Compiler for 32-bit applications, Version 8.1)
+Windows 2000 (i386 with Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 12.00.8804 for 80x86)
+Windows XP   (i386 with Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 14.00.50215.44 for 80x86)
+
+
+How to install:
+
+./configure
+make
+make install
+
+If your system lacks /dev/urandom, do NOT link a possibly existing
+/dev/random but instead use a entropy gathering daemon like PRNGD (PRNGD
+is never drained and can never block (unlike the original EGD or
+/dev/random). PRNGD can be found on:
+http://www.aet.tu-cottbus.de/personen/jaenicke/postfix_tls/prngd.html
+
+How to use it:
+
+TLSWRAP listens to port 7000 by default, see below how to change it. Connect
+to this port (127.0.0.1:7000) instead of the normal FTP server and replace
+your username with username@hostname:port and use your password as normal.
+If you put a # in from of the username, the data channel encryption will be
+disabled and you can do site-to-site transfers ("FXP" or "ftp proxy").
+The character % in front of the username enables "Implicit SSL" and +<mode>
+enables "security mode" <mode>, for example, use +3user@host:port to enable
+security mode 3. For more details on security modes, see below. 
+
+You can also connect from a remote computer, for example if you have a
+UNIX-based Internet/NAT router then run this on the server and you can
+connect with Windows clients and connect safely over the Internet.
+
+New since 0.7 beta 3: You who connect remotely *must* specify an IP
+to listen to with -h, the default (127.0.0.1) is only available locally.
+
+Command line options:
+
+  -a filename
+    Specifies the name of a PEM file with CA certificates. All specified
+    certificates must be valid. These are used with security modes 3 and 4.
+
+  -c max  
+    Maximum number of client connections to handle. Defaults to 5.
+
+  -C list
+    Select permitted SSL ciphers each separated by a colon.
+    Defaults to RC4-SHA:RC4-MD5:DHE-DSS-RC4-SHA:DES-CBC3-SHA:
+		DES-CBC3-MD5:EDH-RSA-DES-CBC3-SHA:EDH-DSS-DES-CBC3-SHA,
+		you may want ALL instead. 
+
+  -d
+    Debug mode. Causes the program to not detach from the
+    controlling terminal and to print debug information to
+    standard output.
+
+  -E socket
+    Entropy Gathering Daemon socket to use to feed OpenSSL
+    random number generator (Available only if compiled
+    with OpenSSL 0.9.5a or higher). Default locations will
+    be searched even without this option (/var/run/egd-pool,
+    /dev/egd-pool and /etc/egd-pool).
+
+  -h host
+    Specify the hostname or IP to bind the listening socket to. Defaults to
+    127.0.0.1.
+		
+  -I options
+    Windows only: Use -I <options> to install TLSWrap as a service, to be
+    started with <options> on system boot. If the options contain spaces,
+    enclose them with ", e.g. 'tlswrap -I "-l 6000"'. To install with the
+    default options, use the command 'tlswrap -I ""'. The service is
+    automatically started after installation.
+
+  -k
+    Windows only: wait for a key after printing messages related to Windows
+    services.
+
+  -l port
+    Port to listen for clients on, defaults to 7000.
+
+  -p directory
+    Specifies the directory from which server certificates will be loaded and
+    saved. The certificates should be named <server-IP>-<data/ctrl>.pem.
+
+    For details on how to use server certificates, see the details on the
+    security modes.
+
+  -P directory
+    Specifies the directory from which user certificates/certificate chains
+    will be loaded. After this, TLSWrap will try to load <server-IP>.pem
+    from the user certificate directory.
+
+    The certificates must be in PEM format and must be sorted starting with the
+    subject's certificate (actual client certificate), followed by intermediate
+    CA certificates if applicable, and ending at the highest level (root) CA.
+
+  -R
+    Windows only: Stops (if it is running) and removes the TLSWrap service.
+
+  -s mode
+    Specifies the default security mode. These are as follows:
+
+    0 - No certificate verification is done. (Default for now.)
+
+    1 - Relaxed whitelisting
+        --------------------
+        On the first connection to a server, its certificates (control and
+        data connections are treated separately, for quite obvious reasons), will
+        will be saved in the certs dir (see below) as <server-IP>-<data/ctrl>.pem.
+
+        On subsequent connections, TLSWrap will verify the stored certificates
+        against those presented by the server. If the control connection
+        certificate doesn't match, tlswrap will say "530 TLSWrap certificate
+        verification failed, disconnecting." and disconnect. If the data
+        certificate doesn't match, it will print "425 TLSWrap data certificate
+        verification failed.", the data transfer will be aborted but TLSWrap will
+        stay connected with the server.
+
+        No other checks (such as expiration dates, CRLs, CAs) will be made on
+        the certificates.
+
+    2 - Strict whitelisting
+        -------------------
+        Identical to mode 1 above, but with the difference that no new
+        certificates will be added. If TLSWrap can't find certificate file(s)
+        for a server, it will just disconnect.
+
+    3 - Relaxed PKI path validation
+        ---------------------------
+        This mode requires one or more X.509 CA certificates (or certificate chains)
+        in the form of a PEM file. All certificates must be valid. To specify CA
+        certificates, use -a <name_of_ca_PEM_file>.
+
+        Upon connection with a server, an encrypted TLS session is first eshtablished.
+        This yields the server's X.509 certificate which is validated using the
+        previously specified CA certificates. No certificate fields are used.
+
+    4 - Strict PKI path validation
+        --------------------------
+        This works like above mode, but the certificate information is verified as
+        follows:
+
+        If the X.509v3 subject alternative name extension is present, then
+        the DNS name and IP address fields will be matched against the server's.
+        If there is no subjectAltName extension the commonName (CN) will be
+        compared against the DNS name. If either check fail then the connection
+        will be terminated.
+
+        ## This is the proper way to use X.509 certificates ##
+
+  -t tokens
+    Specifies the 5 characters to 1) disable data encryption,
+    2) separate the username and the hostname, 3) separate the hostname and
+    port, 4) enable "implicit ssl", and 5) change the security mode.
+    defaults to "#@:%+".
+
+Contact info:
+
+Send bugreports to ts@codepix.com.
